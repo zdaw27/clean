@@ -38,6 +38,7 @@ export default function App() {
       return;
     }
     try {
+      // Firebase에 저장
       await addDoc(collection(db, "reservations"), {
         name,
         phone,
@@ -48,6 +49,43 @@ export default function App() {
         items,
         createdAt: Timestamp.now(),
       });
+
+      // 카톡 발송 (사용자에게)
+      try {
+        console.log("📱 사용자 카톡 발송 시작:", phone);
+        const userRes = await fetch("https://kakao-server.onrender.com/kakao/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: phone.replace(/-/g, ""),
+            name: name,
+            changeWord: { var1: `${name}님의 헌옷 수거 신청이 접수되었습니다.` }
+          })
+        });
+        const userResult = await userRes.json();
+        console.log("✅ 사용자 카톡 발송 결과:", userResult);
+      } catch (kakaoError) {
+        console.error("❌ 사용자 카톡 발송 실패:", kakaoError);
+      }
+
+      // 카톡 발송 (관리자에게)
+      try {
+        console.log("📱 관리자 카톡 발송 시작");
+        const adminRes = await fetch("https://kakao-server.onrender.com/kakao/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: "01088289952",
+            name: "관리자",
+            changeWord: { var1: `${name}님의 새로운 수거 신청 (${phone}, ${address})` }
+          })
+        });
+        const adminResult = await adminRes.json();
+        console.log("✅ 관리자 카톡 발송 결과:", adminResult);
+      } catch (kakaoError) {
+        console.error("❌ 관리자 카톡 발송 실패:", kakaoError);
+      }
+
       alert("신청이 완료되었습니다!");
       setName(""); setPhone(""); setAddress(""); setDetailAddress("");
       setEntrance(""); setDate(""); setItems(""); setAgree(false);
