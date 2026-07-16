@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "./firebase";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { KAKAO_API } from "./config";
 
 export default function App() {
   const [privacyText, setPrivacyText] = useState("");
@@ -53,7 +54,7 @@ export default function App() {
       // 카톡 발송 (사용자에게)
       try {
         console.log("📱 사용자 카톡 발송 시작:", phone);
-        const userRes = await fetch("https://kakao-server.onrender.com/kakao/send", {
+        const userRes = await fetch(`${KAKAO_API}/kakao/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -71,7 +72,7 @@ export default function App() {
       // 카톡 발송 (관리자에게)
       try {
         console.log("📱 관리자 카톡 발송 시작");
-        const adminRes = await fetch("https://kakao-server.onrender.com/kakao/send", {
+        const adminRes = await fetch(`${KAKAO_API}/kakao/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -190,7 +191,7 @@ export default function App() {
             )}
 
             <p className="text-xs text-neutral-500 leading-relaxed">
-              ※ 20kg 이상부터 수거 가능합니다. <br />
+              ※ 헌옷 · 신발 · 가방 총합 최소 20kg 이상부터 출장 예약이 가능합니다. <br />
               중량 미달 시 중량 충족 후 다시 문의해주세요.
             </p>
 
