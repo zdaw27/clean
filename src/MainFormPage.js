@@ -3,6 +3,16 @@ import { db } from "./firebase";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { KAKAO_API } from "./config";
 
+// 수거 희망일 최소 선택값 = 내일(로컬시간 기준). 당일·과거 날짜 선택 차단, 미래만 허용.
+const getMinDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
 export default function App() {
   const [privacyText, setPrivacyText] = useState("");
   const [name, setName] = useState("");
@@ -159,7 +169,7 @@ export default function App() {
 
             <div>
               <label className="block text-sm mb-1">수거 희망일 (일요일 휴무)</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full border border-neutral-300 rounded-md px-4 py-2" required />
+              <input type="date" value={date} min={getMinDate()} onChange={(e) => setDate(e.target.value)} className="w-full border border-neutral-300 rounded-md px-4 py-2" required />
               <p className="text-xs text-neutral-500 mt-1">※ 희망일 예약 마감 시 빠른 날짜로 자동 예약됩니다</p>
             </div>
 
