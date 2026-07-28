@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { KAKAO_API } from "./config";
@@ -13,20 +13,17 @@ const getMinDate = () => {
   return `${y}-${m}-${day}`;
 };
 
-// 손님이 공백·점·글자를 섞어 입력하면 알림톡 발송이 실패하므로(서버는 숫자만 받음)
-// 입력하는 즉시 숫자만 남기고 010-1234-5678 형태로 맞춰 저장 자체를 깨끗하게 만든다.
-const formatPhone = (value) => {
-  const d = value.replace(/\D/g, "").slice(0, 11);
-  if (d.length < 4) return d;
-  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
-  if (d.length < 11) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
-  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
-};
+// 전화번호는 3칸으로 나눠 받는다. 한 칸짜리 자유 입력이면 공백·점·글자가 섞여 들어와
+// 알림톡 발송이 실패했음(서버는 숫자만 받음). 칸을 나누고 숫자만 받으면 애초에 틀릴 수가 없다.
+const PHONE_MAX = [3, 4, 4];
 
 export default function App() {
   const [privacyText, setPrivacyText] = useState("");
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneParts, setPhoneParts] = useState(["", "", ""]);
+  const phoneRefs = [useRef(null), useRef(null), useRef(null)];
+  const phoneDigits = phoneParts.join("");
+  const phone = phoneParts.every(Boolean) ? phoneParts.join("-") : phoneDigits;
   const [address, setAddress] = useState("");
   const [detailAddress, setDetailAddress] = useState("");
   const [entrance, setEntrance] = useState("");
@@ -44,6 +41,27 @@ export default function App() {
     }
   }, [showPrivacyPopup]);
 
+  // 숫자 외에는 아예 입력되지 않게 하고, 칸이 차면 자동으로 다음 칸으로 넘어간다.
+  // 연락처에서 번호를 통째로 붙여넣는 경우도 흔하므로 그때는 세 칸에 나눠 담는다.
+  const handlePhonePart = (idx, raw) => {
+    const digits = raw.replace(/\D/g, "");
+
+    if (digits.length > PHONE_MAX[idx]) {
+      const full = digits.slice(0, 11);
+      setPhoneParts([full.slice(0, 3), full.slice(3, 7), full.slice(7)]);
+      phoneRefs[2].current?.focus();
+      return;
+    }
+
+    setPhoneParts((prev) => prev.map((p, i) => (i === idx ? digits : p)));
+    if (digits.length === PHONE_MAX[idx] && idx < 2) phoneRefs[idx + 1].current?.focus();
+  };
+
+  // 빈 칸에서 백스페이스를 누르면 앞 칸으로 돌아가 이어서 지울 수 있게 한다.
+  const handlePhoneKeyDown = (idx, e) => {
+    if (e.key === "Backspace" && !phoneParts[idx] && idx > 0) phoneRefs[idx - 1].current?.focus();
+  };
+
   const handleAddressSearch = () => {
     new window.daum.Postcode({
       oncomplete: (data) => {
@@ -58,9 +76,9 @@ export default function App() {
       alert("개인정보 수집 및 이용에 동의해주세요.");
       return;
     }
-    // 자릿수가 모자라면 알림톡이 안 가므로 제출 전에 막는다.
-    if (!/^[0-9]{10,11}$/.test(phone.replace(/\D/g, ""))) {
-      alert("휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)");
+    // 자릿수가 모자라면 알림톡이 안 가므로 제출 전에 막는다. (휴대폰은 11자리)
+    if (!/^[0-9]{11}$/.test(phoneDigits)) {
+      alert("휴대폰 번호 11자리를 정확히 입력해주세요. (예: 010-1234-5678)");
       return;
     }
     try {
@@ -114,7 +132,7 @@ export default function App() {
       }
 
       alert("신청이 완료되었습니다!");
-      setName(""); setPhone(""); setAddress(""); setDetailAddress("");
+      setName(""); setPhoneParts(["", "", ""]); setAddress(""); setDetailAddress("");
       setEntrance(""); setDate(""); setItems(""); setAgree(false);
     } catch (error) {
       console.error("Error adding document: ", error);
@@ -170,15 +188,25 @@ export default function App() {
 
             <div>
               <label className="block text-sm mb-1">휴대폰 번호</label>
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={phone}
-                onChange={(e) => setPhone(formatPhone(e.target.value))}
-                placeholder="010-1234-5678"
-                className="w-full border border-neutral-300 rounded-md px-4 py-2"
-                required
-              />
+              <div className="flex items-center space-x-2">
+                {PHONE_MAX.map((max, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <span className="text-neutral-400">-</span>}
+                    <input
+                      ref={phoneRefs[i]}
+                      type="tel"
+                      inputMode="numeric"
+                      value={phoneParts[i]}
+                      onChange={(e) => handlePhonePart(i, e.target.value)}
+                      onKeyDown={(e) => handlePhoneKeyDown(i, e)}
+                      maxLength={max}
+                      placeholder={i === 0 ? "010" : "0".repeat(max)}
+                      className="w-full border border-neutral-300 rounded-md px-4 py-2 text-center"
+                      required
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
 
             <div>
