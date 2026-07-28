@@ -167,6 +167,17 @@ export default function AdminPage() {
       alert("방문일시를 입력해 주세요.");
       return;
     }
+    // 번호에 공백·점·괄호가 섞여 저장된 경우가 많아(전체의 약 6%) 숫자만 남긴다.
+    // 번호를 두 개 적었거나 마스킹된 경우는 여기서 걸러 사장님이 직접 연락하도록 안내.
+    const custPhone = (res.phone || "").replace(/\D/g, "");
+    if (!/^[0-9]{9,12}$/.test(custPhone)) {
+      alert(
+        `손님 전화번호가 올바르지 않아 발송할 수 없습니다.\n\n` +
+        `입력된 번호: ${res.phone || "(없음)"}\n\n` +
+        `직접 연락해 주세요.`
+      );
+      return;
+    }
     if (!window.confirm(`${res.name}님에게 확정 알림을 보낼까요?\n방문일시: ${visit}`)) return;
     setSendingId(res.id);
     try {
@@ -176,7 +187,7 @@ export default function AdminPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            to: (to || "").replace(/-/g, ""),
+            to: (to || "").replace(/\D/g, ""),
             name: label,
             templateCode: CONFIRM_TEMPLATE,
             changeWord: { var1: visit },

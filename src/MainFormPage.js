@@ -68,7 +68,8 @@ export default function App() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            to: phone.replace(/-/g, ""),
+            to: phone.replace(/\D/g, ""), // 공백·점·괄호 등이 섞여 입력돼도 발송되게 숫자만 남김
+
             name: name,
             changeWord: { var1: `${name}님의 헌옷 수거 신청이 접수되었습니다.` }
           })
