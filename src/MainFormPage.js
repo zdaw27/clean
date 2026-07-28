@@ -13,6 +13,16 @@ const getMinDate = () => {
   return `${y}-${m}-${day}`;
 };
 
+// 손님이 공백·점·글자를 섞어 입력하면 알림톡 발송이 실패하므로(서버는 숫자만 받음)
+// 입력하는 즉시 숫자만 남기고 010-1234-5678 형태로 맞춰 저장 자체를 깨끗하게 만든다.
+const formatPhone = (value) => {
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  if (d.length < 11) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+};
+
 export default function App() {
   const [privacyText, setPrivacyText] = useState("");
   const [name, setName] = useState("");
@@ -46,6 +56,11 @@ export default function App() {
     e.preventDefault();
     if (!agree) {
       alert("개인정보 수집 및 이용에 동의해주세요.");
+      return;
+    }
+    // 자릿수가 모자라면 알림톡이 안 가므로 제출 전에 막는다.
+    if (!/^[0-9]{10,11}$/.test(phone.replace(/\D/g, ""))) {
+      alert("휴대폰 번호를 정확히 입력해주세요. (예: 010-1234-5678)");
       return;
     }
     try {
@@ -155,7 +170,15 @@ export default function App() {
 
             <div>
               <label className="block text-sm mb-1">휴대폰 번호</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border border-neutral-300 rounded-md px-4 py-2" required />
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phone}
+                onChange={(e) => setPhone(formatPhone(e.target.value))}
+                placeholder="010-1234-5678"
+                className="w-full border border-neutral-300 rounded-md px-4 py-2"
+                required
+              />
             </div>
 
             <div>
