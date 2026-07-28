@@ -46,9 +46,25 @@ export default function App() {
   const handlePhonePart = (idx, raw) => {
     const digits = raw.replace(/\D/g, "");
 
-    if (digits.length > PHONE_MAX[idx]) {
+    // 번호 전체(10자리 이상)를 붙여넣은 경우 — 어느 칸에 넣었든 3-4-4로 나눠 담는다.
+    if (digits.length >= 10) {
       const full = digits.slice(0, 11);
       setPhoneParts([full.slice(0, 3), full.slice(3, 7), full.slice(7)]);
+      phoneRefs[2].current?.focus();
+      return;
+    }
+
+    // 칸 용량을 넘긴 나머지는 뒤 칸으로 흘려보낸다.
+    if (digits.length > PHONE_MAX[idx]) {
+      setPhoneParts((prev) => {
+        const next = [...prev];
+        let rest = digits;
+        for (let i = idx; i < 3 && rest; i++) {
+          next[i] = rest.slice(0, PHONE_MAX[i]);
+          rest = rest.slice(PHONE_MAX[i]);
+        }
+        return next;
+      });
       phoneRefs[2].current?.focus();
       return;
     }
