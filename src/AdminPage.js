@@ -19,6 +19,19 @@ import { KAKAO_API, CONFIRM_TEMPLATE, ADMIN_PHONE } from "./config";
 
 const PAGE_SIZE = 20;
 
+// 확정 알림톡에는 상세주소 없이 시·군·구까지만 넣는다.
+// 주소는 손님이 직접 친 게 아니라 카카오 우편번호 검색에서 온 값이라 형식이 일정하다.
+// ("대구 중구"처럼 시·도 자체가 '구'로 끝나는 경우가 있어 첫 칸은 건너뛴다)
+const areaOnly = (address) => {
+  const parts = (address || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  const gu = parts.findIndex((p, i) => i > 0 && p.endsWith("구"));
+  if (gu > 0) return parts.slice(0, gu + 1).join(" ");
+  const si = parts.findIndex((p) => p.endsWith("시") || p.endsWith("군"));
+  if (si >= 0) return parts.slice(0, si + 1).join(" ");
+  return parts.slice(0, 2).join(" ");
+};
+
 export default function AdminPage() {
   const [reservations, setReservations] = useState([]); // 화면에 불러온 것만
   const [search, setSearch] = useState("");
@@ -190,7 +203,8 @@ export default function AdminPage() {
             to: (to || "").replace(/\D/g, ""),
             name: label,
             templateCode: CONFIRM_TEMPLATE,
-            changeWord: { var1: visit },
+            // var1=방문 날짜, var2=연락처, var3=주소(구까지) — 사장님이 알림만 보고 누구 건지 알 수 있게.
+            changeWord: { var1: visit, var2: res.phone || "", var3: areaOnly(res.address) },
           }),
         })
           .then((r) => r.json())
