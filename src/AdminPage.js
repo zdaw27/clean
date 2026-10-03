@@ -19,17 +19,22 @@ import { KAKAO_API, CONFIRM_TEMPLATE, ADMIN_PHONE } from "./config";
 
 const PAGE_SIZE = 20;
 
-// 확정 알림톡에는 상세주소 없이 시·군·구까지만 넣는다.
+// 확정 알림톡에는 상세주소 없이 지역까지만 넣는다.
+// 경기도는 시까지("경기 화성시"), 그 외는 구까지("서울 구로구") — 사장님 요청.
 // 주소는 손님이 직접 친 게 아니라 카카오 우편번호 검색에서 온 값이라 형식이 일정하다.
-// ("대구 중구"처럼 시·도 자체가 '구'로 끝나는 경우가 있어 첫 칸은 건너뛴다)
 const areaOnly = (address) => {
   const parts = (address || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "";
+
+  const toSi = () => {
+    const i = parts.findIndex((p) => p.endsWith("시") || p.endsWith("군"));
+    return i >= 0 ? parts.slice(0, i + 1).join(" ") : parts.slice(0, 2).join(" ");
+  };
+  if (parts[0].startsWith("경기")) return toSi();
+
+  // "대구 중구"처럼 시·도 이름 자체가 '구'로 끝나는 경우가 있어 첫 칸은 건너뛴다.
   const gu = parts.findIndex((p, i) => i > 0 && p.endsWith("구"));
-  if (gu > 0) return parts.slice(0, gu + 1).join(" ");
-  const si = parts.findIndex((p) => p.endsWith("시") || p.endsWith("군"));
-  if (si >= 0) return parts.slice(0, si + 1).join(" ");
-  return parts.slice(0, 2).join(" ");
+  return gu > 0 ? parts.slice(0, gu + 1).join(" ") : toSi();
 };
 
 export default function AdminPage() {
