@@ -15,7 +15,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { signOut } from "firebase/auth";
-import { KAKAO_API, CONFIRM_TEMPLATE, ADMIN_PHONE } from "./config";
+import { sendConfirmationMessages } from "./sendConfirmationMessages";
 
 const PAGE_SIZE = 20;
 
@@ -180,6 +180,7 @@ export default function AdminPage() {
 
   // 예약 확정 알림톡 발송 (손님 + 사장님 동시)
   const sendConfirm = async (res) => {
+    if (sendingId !== null) return;
     const visit = (visitDate[res.id] ?? `${res.date ?? ""} ${res.timeSlot ?? ""}`).trim();
     if (!visit) {
       alert("방문일시를 입력해 주세요.");
@@ -196,48 +197,24 @@ export default function AdminPage() {
       );
       return;
     }
-    if (!window.confirm(`${res.name}님에게 확정 알림을 보낼까요?\n방문일시: ${visit}`)) return;
+    if (!window.confirm(`${res.name}님 예약 확정 알림과 출장수거 안내를 보낼까요?\n방문일시: ${visit}\n손님과 사장님에게 각각 2통씩 발송됩니다.`)) return;
     setSendingId(res.id);
     try {
-      // 뿌리오 실제 응답(code 1000)만 성공으로 인정. 네트워크 오류/기타 응답은 실패 처리(fail-closed).
-      const send = (to, label) =>
-        fetch(`${KAKAO_API}/kakao/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: (to || "").replace(/\D/g, ""),
-            name: label,
-            templateCode: CONFIRM_TEMPLATE,
-            // var1=방문 날짜, var2=연락처, var3=주소(구까지) — 사장님이 알림만 보고 누구 건지 알 수 있게.
-            changeWord: { var1: visit, var2: res.phone || "", var3: areaOnly(res.address) },
-          }),
-        })
-          .then((r) => r.json())
-          .then((d) => ({
-            ok: d.code === "1000",
-            key: d.messageKey || "-",
-            reason: d.description || d.error || JSON.stringify(d),
-          }))
-          .catch((e) => ({ ok: false, key: "-", reason: "네트워크 오류: " + e.message }));
-
-      const [cust, admin] = await Promise.all([
-        send(res.phone, res.name), // 손님
-        send(ADMIN_PHONE, "관리자"), // 사장님 (확인용)
-      ]);
-
-      if (cust.ok && admin.ok) {
-        alert(
-          `✅ 접수 성공 (손님 + 사장님)\n방문일시: ${visit}\n\n` +
-          `손님 ${res.phone} · messageKey ${cust.key}\n사장님 ${ADMIN_PHONE} · messageKey ${admin.key}\n\n` +
-          `※ 실제 도착 여부는 뿌리오 '발송결과'에서 상태 확인`
-        );
-      } else {
-        alert(
-          `⚠️ 일부/전체 실패 — 다시 확인하세요\n\n` +
-          `손님: ${cust.ok ? "성공 ✓" : "실패 ✗ (" + cust.reason + ")"}\n` +
-          `사장님: ${admin.ok ? "성공 ✓" : "실패 ✗ (" + admin.reason + ")"}`
-        );
-      }
+      const results = await sendConfirmationMessages({
+        phone: res.phone || "", name: res.name, visit, area: areaOnly(res.address),
+      });
+      const allOk = results.every(({ confirmation, guide }) => confirmation.ok && guide.ok);
+      const status = (result) => result.skipped
+        ? `미발송 (${result.reason})`
+        : result.ok ? `접수 성공 · messageKey ${result.key}` : `확인 필요 (${result.reason})`;
+      alert(
+        `${allOk ? "✅ 4통 모두 발송 접수 성공" : "⚠️ 일부/전체 발송 확인 필요"}\n방문일시: ${visit}\n\n` +
+        results.map(({ label, to, confirmation, guide }) =>
+          `${label} ${to}\n예약확정: ${status(confirmation)}\n출장수거 안내: ${status(guide)}`
+        ).join("\n\n") +
+        "\n\n※ 실제 도착 여부는 뿌리오 '발송결과'에서 확인하세요." +
+        (allOk ? "" : "\n다시 누르면 이미 접수된 메시지도 중복 발송될 수 있습니다. 발송결과를 먼저 확인하세요.")
+      );
     } finally {
       setSendingId(null);
     }
@@ -338,7 +315,7 @@ export default function AdminPage() {
                 </button>
                 <button
                   onClick={() => sendConfirm(res)}
-                  disabled={sendingId === res.id}
+                  disabled={sendingId !== null}
                   className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 disabled:opacity-50 whitespace-nowrap"
                 >
                   {sendingId === res.id ? "발송중..." : "확정 알림 보내기"}

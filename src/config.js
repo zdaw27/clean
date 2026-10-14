@@ -6,5 +6,6 @@ export const KAKAO_API =
     : "https://168.144.101.2.sslip.io";
 
 // 승인된 뿌리오 알림톡 템플릿
-export const CONFIRM_TEMPLATE = "ppur_2026070110590215156978809"; // 예약완(확정 후), [*1*]=방문일
+export const CONFIRM_TEMPLATE = "ppur_2026100316222647407687651"; // 예약확정_정정본: 방문일/연락처/지역
+export const PICKUP_GUIDE_TEMPLATE = "ppur_2026100620153047407389628"; // 3번 메세지 수정본: 변수 없음
 export const ADMIN_PHONE = "01088289952"; // 사장님 수신번호
