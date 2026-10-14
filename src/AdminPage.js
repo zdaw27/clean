@@ -303,17 +303,6 @@ export default function AdminPage() {
                   className="border px-2 py-1 rounded text-sm flex-1 min-w-[200px]"
                 />
                 <button
-                  onClick={() =>
-                    setVisitDate((p) => ({
-                      ...p,
-                      [res.id]: `${res.date ?? ""} ${res.timeSlot ?? ""}`.trim(),
-                    }))
-                  }
-                  className="text-xs text-blue-600 underline whitespace-nowrap"
-                >
-                  손님 희망일로
-                </button>
-                <button
                   onClick={() => sendConfirm(res)}
                   disabled={sendingId !== null}
                   className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 disabled:opacity-50 whitespace-nowrap"
