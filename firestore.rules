@@ -1,0 +1,70 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 벤리스트: 기존 문서 권한은 유지하고 신규 예약 접수에만 적용한다.
+    function banlistIsAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+    function banlistNormalizedPhone(value) {
+      return value.replace('[^0-9]', '').replace('^(0082|82)10', '010');
+    }
+    function banlistAllowsNewReservation() {
+      let value = request.resource.data.get('phone', '');
+      let phone = value is string ? banlistNormalizedPhone(value) : '';
+      return !phone.matches('(010[0-9]{8}|01[16789][0-9]{7,8})') ||
+        !exists(/databases/$(database)/documents/bannedPhones/$(phone));
+    }
+    function banlistLegacyCreateAllowed(document) {
+      return document[0] != 'bannedPhones' &&
+        (request.path != /databases/$(database)/documents/reservations/$(request.resource.id) ||
+          banlistAllowsNewReservation());
+    }
+
+    match /bannedPhones/{phone} {
+      // 번호별 차단 여부만 조회할 수 있다. 전체 목록과 관리는 기존 관리자만 허용한다.
+      allow get: if phone.matches('(010[0-9]{8}|01[16789][0-9]{7,8})');
+      allow list: if banlistIsAdmin();
+      allow create: if banlistIsAdmin() &&
+        phone.matches('(010[0-9]{8}|01[16789][0-9]{7,8})') &&
+        request.resource.data.keys().hasOnly(['phone', 'createdAt']) &&
+        request.resource.data.phone == phone &&
+        request.resource.data.createdAt == request.time;
+      allow delete: if banlistIsAdmin();
+      allow update: if false;
+    }
+
+
+    // This rule allows anyone with your Firestore database reference to view, edit,
+    // and delete all data in your Firestore database. It is useful for getting
+    // started, but it is configured to expire after 30 days because it
+    // leaves your app open to attackers. At that time, all client
+    // requests to your Firestore database will be denied.
+    //
+    // Make sure to write security rules for your app before that time, or else
+    // all client requests to your Firestore database will be denied until you Update
+    // your rules
+    match /{document=**} {
+
+		// 일반 사용자: 작성만 허용
+      allow create: if request.auth != null && banlistLegacyCreateAllowed(document);
+
+    }
+    
+     // 🔓 모든 사용자가 자신의 users 문서 읽을 수 있음
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // 🔒 reservations는 누구나 작성만 가능
+    match /reservations/{docId} {
+      allow create: if banlistAllowsNewReservation();  // 👈 로그인 여부 상관 없이 누구나 작성 가능
+  allow read, update, delete: if request.auth != null &&
+    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+  }
+}

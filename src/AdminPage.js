@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { sendConfirmationMessages } from "./sendConfirmationMessages";
+import BanListPanel from "./BanListPanel";
 
 const PAGE_SIZE = 20;
 
@@ -38,6 +39,7 @@ const areaOnly = (address) => {
 };
 
 export default function AdminPage() {
+  const [activeTab, setActiveTab] = useState("reservations");
   const [reservations, setReservations] = useState([]); // 화면에 불러온 것만
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -226,6 +228,24 @@ export default function AdminPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      <div role="tablist" aria-label="관리자 메뉴" className="mb-5 flex gap-2 border-b pb-3">
+        <button type="button" role="tab" id="reservations-tab" aria-controls="reservations-panel"
+          aria-selected={activeTab === "reservations"} onClick={() => setActiveTab("reservations")}
+          className={`rounded px-4 py-2 ${activeTab === "reservations" ? "bg-gray-800 text-white" : "bg-gray-100"}`}>예약 목록</button>
+        <button type="button" role="tab" id="bans-tab" aria-controls="bans-panel"
+          aria-selected={activeTab === "bans"} onClick={() => setActiveTab("bans")}
+          className={`rounded px-4 py-2 ${activeTab === "bans" ? "bg-gray-800 text-white" : "bg-gray-100"}`}>벤리스트</button>
+      </div>
+      {activeTab === "bans" ? (
+        <section role="tabpanel" id="bans-panel" aria-labelledby="bans-tab">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold">전화번호 벤리스트</h1>
+            <button type="button" onClick={handleLogout} className="rounded bg-gray-700 px-3 py-1 text-white">로그아웃</button>
+          </div>
+          <BanListPanel />
+        </section>
+      ) : (
+      <section role="tabpanel" id="reservations-panel" aria-labelledby="reservations-tab">
       <div className="flex justify-between items-center flex-wrap gap-2 mb-4">
         <h1 className="text-2xl font-bold">
           🛠 수거 신청 목록
@@ -328,6 +348,8 @@ export default function AdminPage() {
           <p className="text-sm text-gray-400">마지막입니다.</p>
         )}
       </div>
+      </section>
+      )}
     </div>
   );
 }

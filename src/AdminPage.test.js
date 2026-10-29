@@ -107,3 +107,14 @@ test("발송 확인창에서 취소하면 어떤 메시지도 보내지 않는�
   await click(row, "확정 알림 보내기");
   expect(global.fetch).not.toHaveBeenCalled();
 });
+
+test("벤리스트 탭을 열었다 돌아와도 불러온 기존 예약이 유지된다", async () => {
+  await loadReservations();
+  const tab = (text) => [...container.querySelectorAll('[role="tab"]')].find((button) => button.textContent === text);
+  await act(async () => tab("벤리스트").click());
+  expect(container.querySelector("h1").textContent).toBe("전화번호 벤리스트");
+  await act(async () => tab("예약 목록").click());
+  expect(container.querySelectorAll("li")).toHaveLength(2);
+  expect(container.textContent).toContain(sample.name);
+  expect(global.fetch).not.toHaveBeenCalled();
+});

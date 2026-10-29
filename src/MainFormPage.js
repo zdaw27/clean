@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { KAKAO_API } from "./config";
+import { checkPhoneBan, normalizePhone } from "./phoneBan";
 
 // 수거 희망일 최소 선택값 = 내일(로컬시간 기준). 당일·과거 날짜 선택 차단, 미래만 허용.
 const getMinDate = () => {
@@ -31,6 +32,8 @@ export default function App() {
   const [items, setItems] = useState("");
   const [agree, setAgree] = useState(false);
   const [showPrivacyPopup, setShowPrivacyPopup] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (showPrivacyPopup) {
@@ -44,7 +47,7 @@ export default function App() {
   // 숫자 외에는 아예 입력되지 않게 하고, 칸이 차면 자동으로 다음 칸으로 넘어간다.
   // 연락처에서 번호를 통째로 붙여넣는 경우도 흔하므로 그때는 세 칸에 나눠 담는다.
   const handlePhonePart = (idx, raw) => {
-    const digits = raw.replace(/\D/g, "");
+    const digits = normalizePhone(raw);
 
     // 번호 전체(10자리 이상)를 붙여넣은 경우 — 어느 칸에 넣었든 3-4-4로 나눠 담는다.
     if (digits.length >= 10) {
@@ -88,6 +91,7 @@ export default function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!agree) {
       alert("개인정보 수집 및 이용에 동의해주세요.");
       return;
@@ -97,7 +101,14 @@ export default function App() {
       alert("휴대폰 번호 11자리를 정확히 입력해주세요. (예: 010-1234-5678)");
       return;
     }
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
+      // 차단된 번호는 기존 예약 저장과 접수 알림을 실행하기 전에 거부한다.
+      if (await checkPhoneBan(phoneDigits)) {
+        alert("해당 연락처로는 예약을 접수할 수 없습니다. 업체에 문의해 주세요.");
+        return;
+      }
       // Firebase에 저장
       await addDoc(collection(db, "reservations"), {
         name,
@@ -152,7 +163,12 @@ export default function App() {
       setEntrance(""); setDate(""); setItems(""); setAgree(false);
     } catch (error) {
       console.error("Error adding document: ", error);
-      alert("저장에 실패했습니다.");
+      alert(error.code === "permission-denied"
+        ? "해당 연락처로는 예약을 접수할 수 없습니다. 업체에 문의해 주세요."
+        : "접수에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -273,8 +289,8 @@ export default function App() {
               중량 미달 시 중량 충족 후 다시 문의해주세요.
             </p>
 
-            <button type="submit" className="w-full bg-black text-white py-3 rounded-md text-sm hover:bg-neutral-800 transition">
-              신청하기
+            <button type="submit" disabled={submitting} className="w-full bg-black text-white py-3 rounded-md text-sm hover:bg-neutral-800 transition disabled:opacity-50">
+              {submitting ? "접수 중..." : "신청하기"}
             </button>
           </form>
         </main>
