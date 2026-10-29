@@ -82,3 +82,34 @@ test("저장 확인 중 여러 번 제출해도 예약을 중복 접수하지 �
   expect(container.querySelector('button[type="submit"]').disabled).toBe(true);
   await act(async () => finish({ id: "test-reservation" }));
 });
+
+test("차단 조회 직후 DB에서 접수가 거부되면 알림을 보내지 않고 입력값을 유지한다", async () => {
+  addDoc.mockRejectedValue({ code: "permission-denied" });
+  await ready();
+  await act(async () => Simulate.submit(container.querySelector("form")));
+  expect(global.fetch).not.toHaveBeenCalled();
+  expect(window.alert).toHaveBeenCalledWith(expect.stringContaining("예약을 접수할 수 없습니다"));
+  expect(container.querySelector('input[required]').value).toBe("테스트");
+  expect(container.querySelector('button[type="submit"]').disabled).toBe(false);
+});
+
+test("주소 검색과 상세 입력은 기존 필드 그대로 저장하고 접수 후 초기화한다", async () => {
+  addDoc.mockResolvedValue({ id: "test-reservation" });
+  const previousDaum = window.daum;
+  window.daum = { Postcode: jest.fn(function ({ oncomplete }) { this.open = () => oncomplete({ address: "테스트시 테스트구 테스트로 1" }); }) };
+  try {
+    await ready();
+    await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === "주소 검색").click());
+    for (const [selector, value] of [
+      ['input[placeholder^="상세주소"]', "301호"],
+      ['input[placeholder^="아파트/건물명"]', "테스트아파트"],
+      ['textarea', "헌옷 30kg"],
+    ]) await act(async () => Simulate.change(container.querySelector(selector), { target: { value } }));
+    await act(async () => Simulate.submit(container.querySelector("form")));
+    expect(addDoc.mock.calls[0][1]).toEqual({ name: "테스트", phone: "010-1234-5678", address: "테스트시 테스트구 테스트로 1", detailAddress: "301호", entrance: "테스트아파트", date: "2026-11-20", items: "헌옷 30kg", createdAt: "test-time" });
+    expect(container.querySelector('input[required]').value).toBe("");
+    expect(container.querySelector('input[placeholder="주소를 검색해주세요"]').value).toBe("");
+    expect(container.querySelector('input[type="checkbox"]').checked).toBe(false);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  } finally { window.daum = previousDaum; }
+});

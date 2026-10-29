@@ -1,7 +1,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { Simulate } from "react-dom/test-utils";
-import { getDocs, getCountFromServer } from "firebase/firestore";
+import { getDocs, getCountFromServer, deleteDoc, doc, Timestamp, startAfter } from "firebase/firestore";
 import AdminPage from "./AdminPage";
 import { ADMIN_PHONE, CONFIRM_TEMPLATE, PICKUP_GUIDE_TEMPLATE } from "./config";
 
@@ -117,4 +117,73 @@ test("벤리스트 탭을 열었다 돌아와도 불러온 기존 예약이 유�
   expect(container.querySelectorAll("li")).toHaveLength(2);
   expect(container.textContent).toContain(sample.name);
   expect(global.fetch).not.toHaveBeenCalled();
+});
+
+test("이름·전화·주소 검색과 입력한 방문일시가 탭 왕복 후에도 유지된다", async () => {
+  const row = await loadReservations();
+  await act(async () => Simulate.change(row.querySelector('input[type="text"]'), { target: { value: "방문 메모" } }));
+  const search = () => container.querySelector('input[placeholder^="이름/전화/주소"]');
+  for (const value of [sample.name, "0000 0002", "분당구"]) {
+    await act(async () => Simulate.change(search(), { target: { value } }));
+    expect(container.querySelectorAll("li")).toHaveLength(1);
+    expect(container.querySelector("li").textContent).toContain(sample.name);
+  }
+  const tab = (text) => [...container.querySelectorAll('[role="tab"]')].find((button) => button.textContent === text);
+  await act(async () => tab("벤리스트").click());
+  await act(async () => tab("예약 목록").click());
+  expect(search().value).toBe("분당구");
+  expect(container.querySelector('li input').value).toBe("방문 메모");
+});
+
+test("신청일 검색은 한국시간 하루 범위를 조회하고 날짜를 지우면 최근 목록으로 돌아간다", async () => {
+  await loadReservations();
+  getDocs.mockResolvedValueOnce({ docs: [{ id: "dated", data: () => sample }] });
+  await act(async () => Simulate.change(container.querySelector('input[type="date"]'), { target: { value: "2026-10-20" } }));
+  const times = Timestamp.fromDate.mock.calls.slice(-2).map(([value]) => value.toISOString());
+  expect(times).toEqual(["2026-10-19T15:00:00.000Z", "2026-10-20T15:00:00.000Z"]);
+  expect(container.querySelectorAll("li")).toHaveLength(1);
+  await act(async () => Simulate.change(container.querySelector('input[type="date"]'), { target: { value: "" } }));
+  expect(container.querySelectorAll("li")).toHaveLength(2);
+});
+
+test("더 보기는 마지막 문서 다음 페이지를 덧붙이고 기존 예약을 유지한다", async () => {
+  const first = Array.from({ length: 20 }, (_, index) => ({ id: `page-${index}`, data: () => ({ ...sample, name: `예약${index}` }) }));
+  getCountFromServer.mockResolvedValue({ data: () => ({ count: 21 }) });
+  getDocs.mockResolvedValueOnce({ docs: first }).mockResolvedValueOnce({ docs: [{ id: "last", data: () => ({ ...sample, name: "마지막예약" }) }] });
+  await act(async () => root.render(<AdminPage />));
+  await click(container, "더 보기");
+  expect(startAfter).toHaveBeenCalledWith(first[19]);
+  expect(container.querySelectorAll("li")).toHaveLength(21);
+  expect(container.querySelector("li").textContent).toContain("예약0");
+  expect(container.textContent).toContain("마지막예약");
+});
+
+test("기존 예약 삭제는 취소 시 유지하고 확인한 예약만 삭제하며 건수를 갱신한다", async () => {
+  const row = await loadReservations();
+  doc.mockImplementation((db, name, id) => ({ name, id }));
+  deleteDoc.mockResolvedValue();
+  window.confirm.mockReturnValue(false);
+  await click(row, "삭제");
+  expect(deleteDoc).not.toHaveBeenCalled();
+  expect(container.querySelectorAll("li")).toHaveLength(2);
+  window.confirm.mockReturnValue(true);
+  await click(row, "삭제");
+  expect(deleteDoc).toHaveBeenCalledWith({ name: "reservations", id: "fake-1" });
+  expect(container.querySelectorAll("li")).toHaveLength(1);
+  expect(container.querySelector("h1").textContent).toContain("전체 1건");
+});
+
+test("CSV 다운로드는 검색으로 숨겨진 예약을 포함한 전체 목록을 내보낸다", async () => {
+  await loadReservations();
+  await act(async () => Simulate.change(container.querySelector('input[placeholder^="이름/전화/주소"]'), { target: { value: sample.name } }));
+  expect(container.querySelectorAll("li")).toHaveLength(1);
+  let downloaded;
+  jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function () {
+    downloaded = { filename: this.download, content: decodeURI(this.getAttribute("href")) };
+  });
+  await click(container, "CSV 다운로드(전체)");
+  expect(downloaded.filename).toBe("reservations.csv");
+  expect(downloaded.content).toContain("다른예약");
+  expect(downloaded.content).toContain(sample.name);
+  expect(downloaded.content).toContain(sample.detailAddress);
 });
