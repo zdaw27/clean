@@ -8,6 +8,33 @@
     <script async src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main id="boot-status" style="padding:24px;max-width:640px;margin:40px auto;font-family:sans-serif">
+        <p id="boot-message">화면을 불러오는 중입니다.</p>
+        <div id="boot-recovery" style="display:none;margin-top:16px">
+          <p>연결 상태를 확인한 후 다시 열어 주세요. 문제가 반복되면 아래 오류 내용을 전달해 주세요.</p>
+          <a id="boot-retry" href="%PUBLIC_URL%/?retry=20261105#/admin">다시 열기</a>
+          <pre id="boot-error" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        </div>
+        <noscript>브라우저에서 JavaScript 실행이 차단되어 화면을 열 수 없습니다.</noscript>
+      </main>
+    </div>
+    <script>
+      (function () {
+        function showFailure(message) {
+          if (!document.getElementById('boot-status')) return;
+          document.getElementById('boot-message').textContent = '화면을 불러오지 못했습니다.';
+          document.getElementById('boot-recovery').style.display = 'block';
+          document.getElementById('boot-error').textContent = String(message).slice(0, 500);
+          document.getElementById('boot-retry').href = location.pathname + '?retry=' + Date.now() + location.hash;
+        }
+        window.addEventListener('error', function (event) {
+          if (event.target && event.target.tagName === 'SCRIPT' && /\/static\/js\//.test(event.target.src || '')) {
+            showFailure('화면 파일을 내려받지 못했습니다.');
+          } else if (event.message) showFailure(event.message);
+        }, true);
+        setTimeout(function () { showFailure('화면 시작 응답이 지연되고 있습니다.'); }, 10000);
+      })();
+    </script>
   </body>
 </html>
