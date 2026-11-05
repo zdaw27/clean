@@ -113,3 +113,17 @@ test("주소 검색과 상세 입력은 기존 필드 그대로 저장하고 접
     expect(global.fetch).toHaveBeenCalledTimes(2);
   } finally { window.daum = previousDaum; }
 });
+
+test("주소 검색 외부 파일이 늦어도 화면을 유지하고 재시도 안내를 표시한다", async () => {
+  const previousDaum = window.daum;
+  window.daum = undefined;
+  try {
+    await ready();
+    await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent === "주소 검색").click());
+    expect(window.alert).toHaveBeenCalledWith("주소 검색 서비스를 아직 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    expect(container.querySelector('input[required]').value).toBe("테스트");
+    expect(container.querySelector('button[type="submit"]').disabled).toBe(false);
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally { window.daum = previousDaum; }
+});

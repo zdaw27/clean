@@ -82,6 +82,10 @@ export default function App() {
   };
 
   const handleAddressSearch = () => {
+    if (!window.daum || typeof window.daum.Postcode !== "function") {
+      alert("주소 검색 서비스를 아직 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
     new window.daum.Postcode({
       oncomplete: (data) => {
         setAddress(data.address);
